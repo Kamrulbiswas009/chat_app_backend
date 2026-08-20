@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------
+// AUTH + USER
+// ---------------------------
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String   // hashed (bcrypt/argon2)
+  avatar    String?
+  bio       String?
+
+  isOnline  Boolean   @default(false)
+  lastSeen  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // relations
+  sessions           Session[]
+  sentMessages       Message[]         @relation("SentMessages")
+  conversationsAsA   Conversation[]    @relation("UserA")
+  conversationsAsB   Conversation[]    @relation("UserB")
+  messageDeletions   MessageDeletion[]
+  typingStatuses     TypingStatus[]
+
+  @@index([email])
+}
+
+// Login session / refresh token tracking
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  refreshToken String   @unique
+  device       String?
+  ip           String?
+
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ---------------------------
+// P2P (1-to-1) CHAT
+// ---------------------------
+
+// One conversation = exactly 2 users (P2P).
+// userAId always < userBId (enforce in app code) so the unique pair constraint works
+// regardless of who initiated the chat.
+model Conversation {
+  id            String   @id @default(cuid())
+
+  userAId       String
+  userA         User     @relation("UserA", fields: [userAId], references: [id])
+
+  userBId       String
+  userB         User     @relation("UserB", fields: [userBId], references: [id])
+
+  lastMessageAt DateTime?
+  createdAt     DateTime @default(now())
+
+  messages      Message[]
+  typingStatuses TypingStatus[]
+
+  @@unique([userAId, userBId])
+  @@index([userAId])
+  @@index([userBId])
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+  AUDIO
+  VIDEO
+}
+
+model Message {
+  id             String       @id @default(cuid())
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  senderId       String
+  sender         User         @relation("SentMessages", fields: [senderId], references: [id])
+
+  content        String
+  type           MessageType  @default(TEXT)
+  attachmentUrl  String?
+
+  // "delete for everyone" -> hard flag, message body ke hide/blank kore dao app layer e
+  isDeletedForEveryone Boolean @default(false)
+  deletedAt            DateTime?
+
+  isEdited       Boolean      @default(false)
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  // "delete for me" -> per-user soft delete
+  deletions      MessageDeletion[]
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+}
+
+// Per-user "delete for me" record.
+// Ekjon user delete korle just eikhane row create hoy — onno user er kase message thake e.
+model MessageDeletion {
+  id        String   @id @default(cuid())
+
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  deletedAt DateTime @default(now())
+
+  @@unique([messageId, userId]) // ekjon ekbar e delete korte parbe
+}
+
+// ---------------------------
+// TYPING INDICATOR
+// ---------------------------
+
+// Optional persisted table — mostly ei status Redis/in-memory + socket event diye
+// real-time e handle kora better, DB e shudhu fallback / debug er jonno rakha jete pare.
+model TypingStatus {
+  id             String       @id @default(cuid())
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  isTyping       Boolean      @default(false)
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([conversationId, userId])
+}
