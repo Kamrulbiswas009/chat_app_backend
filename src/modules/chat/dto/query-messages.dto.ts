@@ -17,7 +17,9 @@ export class QueryMessagesDto {
   @Min(1)
   limit?: number = 30;
 
-  @ApiPropertyOptional({ description: 'Cursor message ID for pagination (older messages)' })
+  @ApiPropertyOptional({
+    description: 'Cursor message ID for pagination (older messages)',
+  })
   @IsOptional()
   @IsString()
   before?: string;
