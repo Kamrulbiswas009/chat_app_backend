@@ -42,11 +42,7 @@ export interface IEnv {
   };
 }
 
-const requiredEnv = [
-  'DATABASE_URL',
-  'JWT_SECRET',
-  'JWT_REFRESH_SECRET',
-];
+const requiredEnv = ['DATABASE_URL', 'JWT_SECRET', 'JWT_REFRESH_SECRET'];
 
 // env Checker
 function envChecker() {
