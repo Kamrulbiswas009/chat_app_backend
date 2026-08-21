@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -34,12 +38,28 @@ export class UserService {
     return user;
   }
 
-  async updateProfile(userId: string, data: UpdateUserDto) {
+  async updateProfile(
+    userId: string,
+    data: UpdateUserDto,
+    file?: Express.Multer.File,
+  ) {
+    let avatarUrl = data.avatar;
+
+    if (file) {
+      const uploadResult = await this.cloudinaryService.uploadFileFromBuffer(
+        file.buffer,
+        'user_avatars',
+        `avatar_${userId}_${Date.now()}`,
+        'image',
+      );
+      avatarUrl = uploadResult.secure_url;
+    }
+
     const updated = await this.prisma.user.update({
       where: { id: userId },
       data: {
         ...(data.name !== undefined && { name: data.name }),
-        ...(data.avatar !== undefined && { avatar: data.avatar }),
+        ...(avatarUrl !== undefined && { avatar: avatarUrl }),
         ...(data.bio !== undefined && { bio: data.bio }),
       },
       select: {
@@ -84,6 +104,8 @@ export class UserService {
         bio: true,
         isOnline: true,
         lastSeen: true,
+        createdAt: true,
+        updatedAt: true,
       },
     });
 
@@ -93,19 +115,25 @@ export class UserService {
     };
   }
 
-  async searchUsers(query: string, currentUserId: string, limit = 20) {
+  async searchUsers(query: string, excludeUserId?: string, limit = 20) {
+    const trimmed = (query || '').trim();
+    const safeLimit = Math.max(1, Math.min(100, Number(limit) || 20));
+
+    const where: any = {};
+
+    if (excludeUserId) {
+      where.id = { not: excludeUserId };
+    }
+
+    if (trimmed) {
+      where.OR = [
+        { name: { contains: trimmed, mode: 'insensitive' } },
+        { email: { contains: trimmed, mode: 'insensitive' } },
+      ];
+    }
+
     const users = await this.prisma.user.findMany({
-      where: {
-        AND: [
-          { id: { not: currentUserId } },
-          {
-            OR: [
-              { name: { contains: query, mode: 'insensitive' } },
-              { email: { contains: query, mode: 'insensitive' } },
-            ],
-          },
-        ],
-      },
+      where,
       select: {
         id: true,
         name: true,
@@ -114,22 +142,43 @@ export class UserService {
         bio: true,
         isOnline: true,
         lastSeen: true,
+        createdAt: true,
+        updatedAt: true,
       },
-      take: limit,
+      take: safeLimit,
       orderBy: { name: 'asc' },
     });
 
     return users;
   }
 
-  async getAllUsers(currentUserId: string, page = 1, limit = 20) {
-    const skip = (page - 1) * limit;
+  async getAllUsers(
+    currentUserId?: string,
+    page = 1,
+    limit = 20,
+    search?: string,
+  ) {
+    const safePage = Math.max(1, Number(page) || 1);
+    const safeLimit = Math.max(1, Math.min(100, Number(limit) || 20));
+    const skip = (safePage - 1) * safeLimit;
+
+    const where: any = {};
+
+    if (currentUserId) {
+      where.id = { not: currentUserId };
+    }
+
+    const trimmed = (search || '').trim();
+    if (trimmed) {
+      where.OR = [
+        { name: { contains: trimmed, mode: 'insensitive' } },
+        { email: { contains: trimmed, mode: 'insensitive' } },
+      ];
+    }
 
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({
-        where: {
-          id: { not: currentUserId },
-        },
+        where,
         select: {
           id: true,
           name: true,
@@ -138,15 +187,15 @@ export class UserService {
           bio: true,
           isOnline: true,
           lastSeen: true,
+          createdAt: true,
+          updatedAt: true,
         },
         skip,
-        take: limit,
-        orderBy: { name: 'asc' },
+        take: safeLimit,
+        orderBy: { createdAt: 'desc' },
       }),
       this.prisma.user.count({
-        where: {
-          id: { not: currentUserId },
-        },
+        where,
       }),
     ]);
 
@@ -154,9 +203,9 @@ export class UserService {
       users,
       meta: {
         total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
+        page: safePage,
+        limit: safeLimit,
+        totalPages: Math.ceil(total / safeLimit),
       },
     };
   }

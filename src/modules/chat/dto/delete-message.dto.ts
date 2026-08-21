@@ -7,7 +7,12 @@ export enum DeleteType {
 }
 
 export class DeleteMessageDto {
-  @ApiProperty({ enum: DeleteType, default: DeleteType.ME, description: 'Delete mode: ME (delete for me only) or EVERYONE (delete for everyone)' })
+  @ApiProperty({
+    enum: DeleteType,
+    default: DeleteType.ME,
+    description:
+      'Delete mode: ME (delete for me only) or EVERYONE (delete for everyone)',
+  })
   @IsNotEmpty()
   @IsEnum(DeleteType)
   type: DeleteType;

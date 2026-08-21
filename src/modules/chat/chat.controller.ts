@@ -47,7 +47,9 @@ export class ChatController {
   @Post('upload')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({ summary: 'Upload an image, video, audio, or document for chat' })
+  @ApiOperation({
+    summary: 'Upload an image, video, audio, or document for chat',
+  })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -69,7 +71,9 @@ export class ChatController {
 
   @Post('conversations')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Get or start a 1-to-1 conversation with another user' })
+  @ApiOperation({
+    summary: 'Get or start a 1-to-1 conversation with another user',
+  })
   @ApiOkResponse({ description: 'Conversation retrieved or created' })
   async getOrCreateConversation(
     @GetCurrentUser('id') currentUserId: string,
@@ -79,16 +83,26 @@ export class ChatController {
       currentUserId,
       body.recipientId,
     );
-    return sendResponse(HttpStatus.OK, 'Conversation retrieved successfully', result);
+    return sendResponse(
+      HttpStatus.OK,
+      'Conversation retrieved successfully',
+      result,
+    );
   }
 
   @Get('conversations')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Get all active conversations for the current user' })
+  @ApiOperation({
+    summary: 'Get all active conversations for the current user',
+  })
   @ApiOkResponse({ description: 'Conversations list fetched successfully' })
   async getUserConversations(@GetCurrentUser('id') currentUserId: string) {
     const result = await this.chatService.getUserConversations(currentUserId);
-    return sendResponse(HttpStatus.OK, 'Conversations fetched successfully', result);
+    return sendResponse(
+      HttpStatus.OK,
+      'Conversations fetched successfully',
+      result,
+    );
   }
 
   @Get('conversations/:id')
@@ -103,7 +117,11 @@ export class ChatController {
       conversationId,
       currentUserId,
     );
-    return sendResponse(HttpStatus.OK, 'Conversation details fetched successfully', result);
+    return sendResponse(
+      HttpStatus.OK,
+      'Conversation details fetched successfully',
+      result,
+    );
   }
 
   @Get('conversations/:id/messages')
@@ -126,7 +144,10 @@ export class ChatController {
   @Post('conversations/:id/messages')
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({ summary: 'Send a message (text and/or file attachment: image, video, audio, file)' })
+  @ApiOperation({
+    summary:
+      'Send a message (text and/or file attachment: image, video, audio, file)',
+  })
   @ApiConsumes('multipart/form-data', 'application/json')
   @ApiBody({
     schema: {
@@ -149,7 +170,8 @@ export class ChatController {
         file: {
           type: 'string',
           format: 'binary',
-          description: 'Direct file attachment (image, video, audio, or document)',
+          description:
+            'Direct file attachment (image, video, audio, or document)',
         },
       },
     },
@@ -177,7 +199,11 @@ export class ChatController {
       .to(`user:${currentUserId}`)
       .emit('new_message', message);
 
-    return sendResponse(HttpStatus.CREATED, 'Message sent successfully', message);
+    return sendResponse(
+      HttpStatus.CREATED,
+      'Message sent successfully',
+      message,
+    );
   }
 
   @Patch('messages/:id')
@@ -189,11 +215,12 @@ export class ChatController {
     @Param('id') messageId: string,
     @Body() body: EditMessageDto,
   ) {
-    const { message, recipientId, conversationId } = await this.chatService.editMessage(
-      currentUserId,
-      messageId,
-      body.content,
-    );
+    const { message, recipientId, conversationId } =
+      await this.chatService.editMessage(
+        currentUserId,
+        messageId,
+        body.content,
+      );
 
     this.chatGateway.server
       .to(`conversation:${conversationId}`)
@@ -230,11 +257,13 @@ export class ChatController {
           type: 'EVERYONE',
         });
     } else {
-      this.chatGateway.server.to(`user:${currentUserId}`).emit('message_deleted', {
-        messageId: result.messageId,
-        conversationId: result.conversationId,
-        type: 'ME',
-      });
+      this.chatGateway.server
+        .to(`user:${currentUserId}`)
+        .emit('message_deleted', {
+          messageId: result.messageId,
+          conversationId: result.conversationId,
+          type: 'ME',
+        });
     }
 
     return sendResponse(HttpStatus.OK, 'Message deleted successfully', result);

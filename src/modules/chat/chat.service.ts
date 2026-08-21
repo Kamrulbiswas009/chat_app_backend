@@ -18,7 +18,10 @@ export class ChatService {
     private readonly cloudinaryService: CloudinaryService,
   ) {}
 
-  private getOrderedUserIds(user1Id: string, user2Id: string): [string, string] {
+  private getOrderedUserIds(
+    user1Id: string,
+    user2Id: string,
+  ): [string, string] {
     return user1Id < user2Id ? [user1Id, user2Id] : [user2Id, user1Id];
   }
 
@@ -40,7 +43,9 @@ export class ChatService {
 
   async getOrCreateConversation(currentUserId: string, recipientId: string) {
     if (currentUserId === recipientId) {
-      throw new BadRequestException('Cannot start a conversation with yourself');
+      throw new BadRequestException(
+        'Cannot start a conversation with yourself',
+      );
     }
 
     const recipient = await this.prisma.user.findUnique({
@@ -51,7 +56,10 @@ export class ChatService {
       throw new NotFoundException('Recipient user not found');
     }
 
-    const [userAId, userBId] = this.getOrderedUserIds(currentUserId, recipientId);
+    const [userAId, userBId] = this.getOrderedUserIds(
+      currentUserId,
+      recipientId,
+    );
 
     let conversation = await this.prisma.conversation.findUnique({
       where: {
@@ -133,7 +141,10 @@ export class ChatService {
       });
     }
 
-    const partner = conversation.userAId === currentUserId ? conversation.userB : conversation.userA;
+    const partner =
+      conversation.userAId === currentUserId
+        ? conversation.userB
+        : conversation.userA;
     const lastMessage = conversation.messages?.[0] || null;
 
     return {
@@ -144,7 +155,9 @@ export class ChatService {
       lastMessage: lastMessage
         ? {
             ...lastMessage,
-            content: lastMessage.isDeletedForEveryone ? 'This message was deleted' : lastMessage.content,
+            content: lastMessage.isDeletedForEveryone
+              ? 'This message was deleted'
+              : lastMessage.content,
           }
         : null,
       lastMessageAt: conversation.lastMessageAt,
@@ -211,7 +224,9 @@ export class ChatService {
           ? {
               id: lastMessage.id,
               senderId: lastMessage.senderId,
-              content: lastMessage.isDeletedForEveryone ? 'This message was deleted' : lastMessage.content,
+              content: lastMessage.isDeletedForEveryone
+                ? 'This message was deleted'
+                : lastMessage.content,
               type: lastMessage.type,
               attachmentUrl: lastMessage.attachmentUrl,
               isDeletedForEveryone: lastMessage.isDeletedForEveryone,
@@ -259,10 +274,13 @@ export class ChatService {
     }
 
     if (conversation.userAId !== userId && conversation.userBId !== userId) {
-      throw new ForbiddenException('You do not have access to this conversation');
+      throw new ForbiddenException(
+        'You do not have access to this conversation',
+      );
     }
 
-    const partner = conversation.userAId === userId ? conversation.userB : conversation.userA;
+    const partner =
+      conversation.userAId === userId ? conversation.userB : conversation.userA;
 
     return {
       id: conversation.id,
@@ -327,7 +345,9 @@ export class ChatService {
       conversationId: msg.conversationId,
       senderId: msg.senderId,
       sender: msg.sender,
-      content: msg.isDeletedForEveryone ? 'This message was deleted' : msg.content,
+      content: msg.isDeletedForEveryone
+        ? 'This message was deleted'
+        : msg.content,
       type: msg.type,
       attachmentUrl: msg.isDeletedForEveryone ? null : msg.attachmentUrl,
       isDeletedForEveryone: msg.isDeletedForEveryone,
@@ -350,7 +370,9 @@ export class ChatService {
   async sendMessage(
     senderId: string,
     data: SendMessageDto,
-    file?: Express.Multer.File | { buffer: Buffer; originalname: string; mimetype: string },
+    file?:
+      | Express.Multer.File
+      | { buffer: Buffer; originalname: string; mimetype: string },
   ) {
     const conversationId = data.conversationId;
     if (!conversationId) {
@@ -365,8 +387,13 @@ export class ChatService {
       throw new NotFoundException('Conversation not found');
     }
 
-    if (conversation.userAId !== senderId && conversation.userBId !== senderId) {
-      throw new ForbiddenException('You are not a participant of this conversation');
+    if (
+      conversation.userAId !== senderId &&
+      conversation.userBId !== senderId
+    ) {
+      throw new ForbiddenException(
+        'You are not a participant of this conversation',
+      );
     }
 
     let attachmentUrl = data.attachmentUrl;
@@ -375,18 +402,24 @@ export class ChatService {
     // Direct file attachment handling
     const fileToUpload = file || data.file;
     if (fileToUpload && fileToUpload.buffer) {
-      const uploadResult = await this.uploadChatAttachment(fileToUpload as Express.Multer.File);
+      const uploadResult = await this.uploadChatAttachment(
+        fileToUpload as Express.Multer.File,
+      );
       attachmentUrl = uploadResult.url;
       messageType = uploadResult.type;
     }
 
     const content = data.content || (attachmentUrl ? '' : '');
     if (!content && !attachmentUrl) {
-      throw new BadRequestException('Message must contain either text content or a file attachment');
+      throw new BadRequestException(
+        'Message must contain either text content or a file attachment',
+      );
     }
 
     const recipientId =
-      conversation.userAId === senderId ? conversation.userBId : conversation.userAId;
+      conversation.userAId === senderId
+        ? conversation.userBId
+        : conversation.userAId;
 
     const [message] = await this.prisma.$transaction([
       this.prisma.message.create({
@@ -477,10 +510,13 @@ export class ChatService {
     }
 
     const isParticipant =
-      message.conversation.userAId === userId || message.conversation.userBId === userId;
+      message.conversation.userAId === userId ||
+      message.conversation.userBId === userId;
 
     if (!isParticipant) {
-      throw new ForbiddenException('You are not a participant of this conversation');
+      throw new ForbiddenException(
+        'You are not a participant of this conversation',
+      );
     }
 
     const recipientId =
@@ -490,7 +526,9 @@ export class ChatService {
 
     if (type === DeleteType.EVERYONE) {
       if (message.senderId !== userId) {
-        throw new ForbiddenException('You can only delete for everyone on your own messages');
+        throw new ForbiddenException(
+          'You can only delete for everyone on your own messages',
+        );
       }
 
       await this.prisma.message.update({
@@ -534,7 +572,11 @@ export class ChatService {
     }
   }
 
-  async setTypingStatus(conversationId: string, userId: string, isTyping: boolean) {
+  async setTypingStatus(
+    conversationId: string,
+    userId: string,
+    isTyping: boolean,
+  ) {
     const conversation = await this.prisma.conversation.findUnique({
       where: { id: conversationId },
     });
@@ -542,7 +584,9 @@ export class ChatService {
     if (!conversation) return null;
 
     const recipientId =
-      conversation.userAId === userId ? conversation.userBId : conversation.userAId;
+      conversation.userAId === userId
+        ? conversation.userBId
+        : conversation.userAId;
 
     await this.prisma.typingStatus.upsert({
       where: {

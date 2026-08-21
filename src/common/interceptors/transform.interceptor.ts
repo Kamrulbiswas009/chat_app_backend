@@ -15,9 +15,10 @@ import { ApiResponse } from '../helpers/api-response.helper';
  * - If NO  → wraps the raw payload in the standard ApiResponse shape.
  */
 @Injectable()
-export class TransformInterceptor<T>
-  implements NestInterceptor<T, ApiResponse<T>>
-{
+export class TransformInterceptor<T> implements NestInterceptor<
+  T,
+  ApiResponse<T>
+> {
   intercept(
     context: ExecutionContext,
     next: CallHandler,
