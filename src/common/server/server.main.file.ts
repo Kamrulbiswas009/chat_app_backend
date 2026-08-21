@@ -134,18 +134,22 @@ export function setupRequestLogging(app: any, logger: Logger): void {
 }
 
 export function setupSwagger(app: any, nodeEnv: string, port: number): void {
-  if (nodeEnv === 'production') return;
+  const isSwaggerDisabled =
+    process.env.ENABLE_SWAGGER === 'false' ||
+    process.env.SWAGGER_ENABLED === 'false';
+  if (isSwaggerDisabled) return;
 
-  const config = new DocumentBuilder()
-    .setTitle('NestJS Prisma Template API')
+  const appUrl = process.env.APP_URL;
+
+  const builder = new DocumentBuilder()
+    .setTitle('Chat App API')
     .setDescription(
-      'A production-ready NestJS + Prisma API template.\n\n' +
-        '**Base URL:** `http://localhost:{port}/api/v1`\n\n' +
+      'Real-time P2P Chat Application Backend API.\n\n' +
         '**Auth:** Use the `POST /api/v1/auth/login` endpoint to obtain a Bearer token, ' +
-        'then click **Authorize** above.',
+        'then click **Authorize** above to authenticate all requests.',
     )
     .setVersion('1.0.0')
-    .addServer(`http://localhost:${port}`, 'Local Development')
+    .addServer('/', 'Current Host (Auto-detect / Live URL)')
     .addBearerAuth(
       {
         type: 'http',
@@ -155,9 +159,16 @@ export function setupSwagger(app: any, nodeEnv: string, port: number): void {
       },
       'access-token',
     )
-    .addTag('Auth', 'Authentication & authorization endpoints')
-    .addTag('User', 'User management endpoints')
-    .build();
+    .addTag('Auth', 'Authentication & session endpoints')
+    .addTag('Users', 'User profile & search endpoints')
+    .addTag('Chat', '1-to-1 P2P Messaging & conversations');
+
+  if (appUrl && !appUrl.includes('localhost')) {
+    builder.addServer(appUrl, 'Live Deployed Server');
+  }
+  builder.addServer(`http://localhost:${port}`, 'Localhost Development');
+
+  const config = builder.build();
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document, {
@@ -168,5 +179,5 @@ export function setupSwagger(app: any, nodeEnv: string, port: number): void {
     },
   });
 
-  new Logger('Swagger').log(`Swagger: http://localhost:${port}/docs`);
+  new Logger('Swagger').log(`Swagger Docs: http://localhost:${port}/docs`);
 }

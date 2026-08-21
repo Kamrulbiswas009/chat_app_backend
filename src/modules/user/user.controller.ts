@@ -37,38 +37,47 @@ export class UserController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'List all other users' })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiOperation({ summary: 'List all users with pagination and optional search' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default 1)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default 20)' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Optional search filter (name or email)' })
+  @ApiQuery({ name: 'excludeSelf', required: false, type: Boolean, description: 'Exclude current user (default false)' })
   @ApiOkResponse({ description: 'Users list fetched successfully' })
   async getAllUsers(
     @GetCurrentUser('id') currentUserId: string,
     @Query('page') page = '1',
     @Query('limit') limit = '20',
+    @Query('search') search?: string,
+    @Query('excludeSelf') excludeSelf?: string,
   ) {
+    const isExcludeSelf = excludeSelf === 'true';
     const result = await this.userService.getAllUsers(
-      currentUserId,
-      parseInt(page, 10),
-      parseInt(limit, 10),
+      isExcludeSelf ? currentUserId : undefined,
+      parseInt(String(page || 1), 10) || 1,
+      parseInt(String(limit || 20), 10) || 20,
+      search,
     );
     return sendResponse(HttpStatus.OK, 'Users fetched successfully', result);
   }
 
   @Get('search')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Search users by name or email' })
-  @ApiQuery({ name: 'q', required: true, type: String })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiOperation({ summary: 'Search users by name or email (case-insensitive)' })
+  @ApiQuery({ name: 'q', required: false, type: String, description: 'Search term for name or email' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Max items to return (default 20)' })
+  @ApiQuery({ name: 'excludeSelf', required: false, type: Boolean, description: 'Exclude current user (default false)' })
   @ApiOkResponse({ description: 'Search results fetched successfully' })
   async searchUsers(
     @GetCurrentUser('id') currentUserId: string,
-    @Query('q') query: string,
+    @Query('q') query?: string,
     @Query('limit') limit = '20',
+    @Query('excludeSelf') excludeSelf?: string,
   ) {
+    const isExcludeSelf = excludeSelf === 'true';
     const result = await this.userService.searchUsers(
       query || '',
-      currentUserId,
-      parseInt(limit, 10),
+      isExcludeSelf ? currentUserId : undefined,
+      parseInt(String(limit || 20), 10) || 20,
     );
     return sendResponse(HttpStatus.OK, 'Search completed successfully', result);
   }
@@ -79,18 +88,48 @@ export class UserController {
   @ApiOkResponse({ description: 'User profile fetched successfully' })
   async getUserById(@Param('id') id: string) {
     const result = await this.userService.getProfile(id);
-    return sendResponse(HttpStatus.OK, 'User profile fetched successfully', result);
+    return sendResponse(
+      HttpStatus.OK,
+      'User profile fetched successfully',
+      result,
+    );
   }
 
   @Patch('profile')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Update own user profile details' })
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Update own user profile details (with optional avatar file upload)' })
+  @ApiConsumes('multipart/form-data', 'application/json')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', example: 'John Doe', description: 'User full name' },
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Profile avatar image file (JPG, PNG, WEBP)',
+        },
+        avatar: {
+          type: 'string',
+          example: 'https://res.cloudinary.com/.../avatar.png',
+          description: 'Avatar URL (optional fallback)',
+        },
+        bio: {
+          type: 'string',
+          example: 'Software Engineer & Tech Enthusiast',
+          description: 'User biography',
+        },
+      },
+    },
+  })
   @ApiOkResponse({ description: 'Profile updated successfully' })
   async updateProfile(
     @GetCurrentUser('id') currentUserId: string,
     @Body() data: UpdateUserDto,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
-    const result = await this.userService.updateProfile(currentUserId, data);
+    const result = await this.userService.updateProfile(currentUserId, data, file);
     return sendResponse(HttpStatus.OK, 'Profile updated successfully', result);
   }
 
