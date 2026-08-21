@@ -54,7 +54,9 @@ export class ChatGateway
           : client.handshake?.query?.token);
 
       if (!token) {
-        this.logger.warn(`Connection rejected: No token provided (${client.id})`);
+        this.logger.warn(
+          `Connection rejected: No token provided (${client.id})`,
+        );
         client.disconnect();
         return;
       }
@@ -147,7 +149,10 @@ export class ChatGateway
     await this.chatService.getConversationById(data.conversationId, user.id);
 
     client.join(`conversation:${data.conversationId}`);
-    return { event: 'joined_conversation', conversationId: data.conversationId };
+    return {
+      event: 'joined_conversation',
+      conversationId: data.conversationId,
+    };
   }
 
   @UseGuards(WsJwtGuard)
@@ -167,7 +172,10 @@ export class ChatGateway
     @MessageBody() data: SendMessageDto,
   ) {
     const user = client.data.user;
-    const { message, recipientId } = await this.chatService.sendMessage(user.id, data);
+    const { message, recipientId } = await this.chatService.sendMessage(
+      user.id,
+      data,
+    );
 
     // Emit to conversation room & recipient's personal room
     this.server
@@ -214,11 +222,8 @@ export class ChatGateway
     @MessageBody() data: { messageId: string; content: string },
   ) {
     const user = client.data.user;
-    const { message, recipientId, conversationId } = await this.chatService.editMessage(
-      user.id,
-      data.messageId,
-      data.content,
-    );
+    const { message, recipientId, conversationId } =
+      await this.chatService.editMessage(user.id, data.messageId, data.content);
 
     this.server
       .to(`conversation:${conversationId}`)
