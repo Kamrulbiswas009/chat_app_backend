@@ -6,11 +6,15 @@ import {
   HttpStatus,
   Post,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import {
   ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
@@ -23,6 +27,7 @@ import { RefreshTokenDto } from './dto/refresh.token.dto';
 import { GetCurrentUser } from 'src/common/decorator/get-current-user.decorator';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { sendResponse } from 'src/common/helpers/api-response.helper';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request } from 'express';
 
 @ApiTags('Auth')
@@ -32,10 +37,41 @@ export class AuthController {
 
   @Post('signup')
   @HttpCode(HttpStatus.CREATED)
+  @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({ summary: 'Register a new user account' })
+  @ApiConsumes('multipart/form-data', 'application/json')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['name', 'email', 'password'],
+      properties: {
+        name: { type: 'string', example: 'John Doe', description: 'Full name of the user' },
+        email: { type: 'string', example: 'john@example.com', description: 'Unique email address' },
+        password: { type: 'string', example: 'SecurePassword123!', description: 'Password (min 6 characters)' },
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Profile avatar image file (JPG, PNG, WEBP)',
+        },
+        avatar: {
+          type: 'string',
+          example: 'https://example.com/avatar.jpg',
+          description: 'Avatar image URL (optional fallback)',
+        },
+        bio: {
+          type: 'string',
+          example: 'Hey there! I am using this app.',
+          description: 'User biography',
+        },
+      },
+    },
+  })
   @ApiCreatedResponse({ description: 'User registered successfully' })
-  async userSignUp(@Body() data: UserSignUpDto) {
-    const result = await this.authService.userSignUp(data);
+  async userSignUp(
+    @Body() data: UserSignUpDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    const result = await this.authService.userSignUp(data, file);
     return sendResponse(
       HttpStatus.CREATED,
       SUCCESS_MESSAGES.AUTH.REGISTRATION_SUCCESS,
@@ -53,7 +89,11 @@ export class AuthController {
       userAgent: req.headers['user-agent'],
     };
     const result = await this.authService.signIn(data, clientInfo);
-    return sendResponse(HttpStatus.OK, SUCCESS_MESSAGES.AUTH.LOGIN_SUCCESS, result);
+    return sendResponse(
+      HttpStatus.OK,
+      SUCCESS_MESSAGES.AUTH.LOGIN_SUCCESS,
+      result,
+    );
   }
 
   @Post('refresh-token')
@@ -82,6 +122,10 @@ export class AuthController {
   @ApiOkResponse({ description: 'User profile fetched successfully' })
   async getMe(@GetCurrentUser() user: any) {
     const result = await this.authService.findUser(user?.id);
-    return sendResponse(HttpStatus.OK, 'User profile fetched successfully', result);
+    return sendResponse(
+      HttpStatus.OK,
+      'User profile fetched successfully',
+      result,
+    );
   }
 }

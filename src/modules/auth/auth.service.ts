@@ -12,6 +12,7 @@ import { LoginDto } from './dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { IEnv } from 'src/config/env.config';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 
 @Injectable()
 export class AuthService {
@@ -19,19 +20,32 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly cloudinaryService: CloudinaryService,
   ) {}
 
   async hashPassword(password: string): Promise<string> {
     return bcrypt.hash(password, 10);
   }
 
-  async userSignUp(data: UserSignUpDto) {
+  async userSignUp(data: UserSignUpDto, file?: Express.Multer.File) {
     const existingUser = await this.prisma.user.findUnique({
       where: { email: data.email },
     });
 
     if (existingUser) {
       throw new BadRequestException(ERROR_MESSAGES.USER.USER_ALREADY_EXISTS);
+    }
+
+    let avatarUrl = data.avatar;
+
+    if (file) {
+      const uploadResult = await this.cloudinaryService.uploadFileFromBuffer(
+        file.buffer,
+        'user_avatars',
+        `avatar_${Date.now()}`,
+        'image',
+      );
+      avatarUrl = uploadResult.secure_url;
     }
 
     const hashedPassword = await this.hashPassword(data.password);
@@ -41,7 +55,7 @@ export class AuthService {
         name: data.name,
         email: data.email,
         password: hashedPassword,
-        avatar: data.avatar,
+        avatar: avatarUrl,
         bio: data.bio,
       },
       select: {
@@ -60,7 +74,10 @@ export class AuthService {
     return user;
   }
 
-  async signIn(data: LoginDto, clientInfo?: { ip?: string; userAgent?: string }) {
+  async signIn(
+    data: LoginDto,
+    clientInfo?: { ip?: string; userAgent?: string },
+  ) {
     const user = await this.prisma.user.findUnique({
       where: { email: data.email },
     });
@@ -118,12 +135,19 @@ export class AuthService {
 
     if (!session || session.expiresAt < new Date()) {
       if (session) {
-        await this.prisma.session.delete({ where: { id: session.id } }).catch(() => null);
+        await this.prisma.session
+          .delete({ where: { id: session.id } })
+          .catch(() => null);
       }
-      throw new UnauthorizedException('Session expired or invalid. Please login again.');
+      throw new UnauthorizedException(
+        'Session expired or invalid. Please login again.',
+      );
     }
 
-    const newTokens = await this.generateTokens(session.userId, session.user.email);
+    const newTokens = await this.generateTokens(
+      session.userId,
+      session.user.email,
+    );
 
     const refreshExpiresInDays = 30;
     const expiresAt = new Date();

@@ -1,5 +1,13 @@
-import { Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
-import { UploadApiResponse, UploadApiErrorResponse, v2 as Cloudinary } from 'cloudinary';
+import {
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
+import {
+  UploadApiResponse,
+  UploadApiErrorResponse,
+  v2 as Cloudinary,
+} from 'cloudinary';
 
 @Injectable()
 export class CloudinaryService {
@@ -35,7 +43,9 @@ export class CloudinaryService {
           }
           if (!result) {
             return reject(
-              new InternalServerErrorException('Cloudinary upload returned empty response'),
+              new InternalServerErrorException(
+                'Cloudinary upload returned empty response',
+              ),
             );
           }
           resolve(result);
